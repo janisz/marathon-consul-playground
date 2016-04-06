@@ -1,0 +1,42 @@
+#################################################################################
+#                                                                               #
+# https://github.com/CiscoCloud/haproxy-consul/blob/master/template/consul.tmpl #
+#                                                                               #
+#################################################################################
+
+
+global
+    maxconn 256
+    debug
+
+defaults
+    mode http
+    option forwardfor
+    option http-server-close
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+
+listen stats
+    bind *:8900
+    mode http
+    stats enable
+    stats hide-version
+    stats uri /
+
+
+### HTTP(S) frontend ###
+frontend www
+    bind *:80
+
+    # Generated automatically by consul-template
+{{ range services }}
+    acl host_{{ .Name }} hdr(host) -i {{ .Name }}.test.disco
+    use_backend {{ .Name }}_backend if host_{{ .Name }}{{ end }}
+
+
+### Consul-configured backend services ###
+{{ range services }}
+backend {{ .Name }}_backend
+{{ range service .Name }}
+   server {{ .Node }}-{{ .Name }}-{{ .Port }} {{ .Address }}:{{ .Port }}{{ end }}{{ end }}

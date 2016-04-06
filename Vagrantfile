@@ -14,6 +14,7 @@ Vagrant.configure(2) do |config|
       * Mesos:    http://10.10.10.10:5050
       * Marathon: http://10.10.10.10:8080
       * Consul:   http://10.10.10.10:8500
+      * HAProxy:  http://10.10.10.10:8900
 
    """
 
@@ -29,7 +30,12 @@ Vagrant.configure(2) do |config|
   echo "deb http://dl.bintray.com/v1/content/allegro/deb /" | \
     sudo tee /etc/apt/sources.list.d/marathon-consul.list
   sudo add-apt-repository ppa:webupd8team/java
+  sudo add-apt-repository ppa:vbernat/haproxy-1.6
+
   sudo apt-get -y update
+
+  apt-get install -y haproxy
+
   echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | sudo /usr/bin/debconf-set-selections
   sudo apt-get -qy install curl unzip oracle-java8-set-default zookeeperd mesos marathon marathon-consul
 
@@ -46,6 +52,10 @@ Vagrant.configure(2) do |config|
   unzip -o consul_${CONSUL_VERSION}_linux_amd64.zip -d /usr/local/bin && rm consul_${CONSUL_VERSION}_linux_amd64.zip
   curl -OLs https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_web_ui.zip
   unzip -o consul_${CONSUL_VERSION}_web_ui.zip -d /usr/share/consul/ui && rm consul_${CONSUL_VERSION}_web_ui.zip
+  CONSUL_TEMPLATE_VERSION=0.14.0
+  curl -OLs https://releases.hashicorp.com/consul-template/${CONSUL_TEMPLATE_VERSION}/consul-template_${CONSUL_TEMPLATE_VERSION}_linux_amd64.zip
+  unzip -o consul-template_${CONSUL_TEMPLATE_VERSION}_linux_amd64.zip -d /usr/local/bin
+  rm consul-template_${CONSUL_TEMPLATE_VERSION}_linux_amd64.zip
 
 cat > /etc/consul.d/server/config.json <<EOF
 {
@@ -72,12 +82,34 @@ respawn
 exec consul agent -config-dir /etc/consul.d/server
 EOF
 
+cat > /etc/init/consul-template.conf <<EOF
+description "Consul Template Jobs"
+
+start on runlevel [2345]
+stop on runlevel [!2345]
+start on filesystem and started consul
+
+setuid root
+setgid root
+
+exec consul-template \
+    -consul 10.10.10.10:8500 \
+    -template "/vagrant/haproxy.cfg.ctmpl:/etc/haproxy/haproxy.cfg:/etc/init.d/haproxy restart" \
+    -template "/vagrant/hosts.ctmpl:/etc/hosts"
+EOF
+
   service zookeeper restart
   service mesos-slave restart
   service mesos-master restart
   service marathon restart
   service consul restart
+  service consul-template restart
   service marathon-consul restart
+
+  until curl -sf http://10.10.10.10:8080/v2/apps -o /dev/null; do sleep 1; echo "Waiting for Marathon"; done
+  curl -X PUT -H "Content-Type: application/json" --data @/vagrant/ok.json http://10.10.10.10:8080/v2/apps
+  until curl -sf http://ok.test.disco/ -o /dev/null; do sleep 1; echo "Waiting for app"; done
+  curl http://ok.test.disco/
 
   SHELL
 end

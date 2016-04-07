@@ -28,7 +28,6 @@ listen stats
 ### HTTP(S) frontend ###
 frontend www
     bind *:80
-
     # Generated automatically by consul-template
 {{ range services }}
     acl host_{{ .Name }} hdr(host) -i {{ .Name }}.test.disco
@@ -36,7 +35,22 @@ frontend www
 
 
 ### Consul-configured backend services ###
+{{ range datacenters }}
+{{ $dc := . }}
 {{ range services }}
 backend {{ .Name }}_backend
-{{ range service .Name }}
-   server {{ .Node }}-{{ .Name }}-{{ .Port }} {{ .Address }}:{{ .Port }}{{ end }}{{ end }}
+  mode http
+  balance roundrobin
+  option forwardfor
+
+  ## Datacenter {{$dc}} ##
+  {{- range service (print .Name "@" $dc) "passing" }}
+  {{ if eq .Address "10.10.10.10" -}}
+  server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 100
+  {{- else if eq $dc "dc1" -}}
+  server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 10
+  {{ else -}}
+  server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
+  {{ end -}}
+  {{ end }}
+{{ end }}{{ end }}

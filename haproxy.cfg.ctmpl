@@ -1,13 +1,9 @@
-#################################################################################
-#                                                                               #
-# https://github.com/CiscoCloud/haproxy-consul/blob/master/template/consul.tmpl #
-#                                                                               #
-#################################################################################
-
+###############################################
+# Generated automatically by consul-template  #
+###############################################
 
 global
     maxconn 256
-    debug
 
 defaults
     mode http
@@ -28,29 +24,49 @@ listen stats
 ### HTTP(S) frontend ###
 frontend www
     bind *:80
-    # Generated automatically by consul-template
-{{ range services }}
-    acl host_{{ .Name }} hdr(host) -i {{ .Name }}.test.disco
-    use_backend {{ .Name }}_backend if host_{{ .Name }}{{ end }}
 
+    ### Services ###
+{{ range services }}
+    {{ $service := . -}}
+    use_backend {{ .Name }}_backend if { hdr(host) -i {{ .Name }}.test.disco } !{ hdr(X-Tag) -m found }
+    {{ range .Tags -}}
+      {{ $backend := ( print $service.Name "_" . "_backend") }}
+      use_backend {{ $backend }} if { hdr(host) -i {{ $service.Name }}.test.disco } { hdr(X-Tag) -i {{ . }} }
+    {{- end }}
+{{ end }}
 
 ### Consul-configured backend services ###
-{{ range datacenters }}
-{{ $dc := . }}
+{{ range datacenters -}}
+{{ $dc := . -}}
 {{ range services }}
 backend {{ .Name }}_backend
-  mode http
-  balance roundrobin
-  option forwardfor
-
-  ## Datacenter {{$dc}} ##
   {{- range service (print .Name "@" $dc) "passing" }}
-  {{ if eq .Address "10.10.10.10" -}}
-  server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 100
-  {{- else if eq $dc "dc1" -}}
-  server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 10
-  {{ else -}}
-  server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
+    {{ if eq .Address "10.10.10.10" -}}
+    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 100
+    {{- else if eq $dc "dc1" -}}
+    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 10
+    {{ else -}}
+    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
+    {{ end -}}
   {{ end -}}
-  {{ end }}
-{{ end }}{{ end }}
+
+{{ $service := . }}
+{{ range .Tags -}}
+  {{ $tag := . -}}
+  {{- $backend := ( print $service.Name "_" $tag "_backend") }}
+backend {{ $backend }}
+  {{- range service (print $service.Name "@" $dc) "passing" }}
+  {{ if .Tags | contains $tag }}
+    {{ if eq .Address "10.10.10.10" -}}
+    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 100
+    {{- else if eq $dc "dc1" -}}
+    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 10
+    {{ else -}}
+    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
+    {{ end -}}
+  {{ end -}}
+{{ end -}}
+{{ end -}}
+
+{{ end -}}
+{{ end }}

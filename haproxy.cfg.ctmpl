@@ -26,13 +26,18 @@ frontend www
     bind *:80
 
     ### Services ###
+{{ range datacenters -}}
+{{ $dc := . -}}
 {{ range services }}
     {{ $service := . -}}
-    use_backend {{ .Name }}_backend if { hdr(host) -i {{ .Name }}.test.disco } !{ hdr(X-Tag) -m found }
+    use_backend {{ .Name }}_backend if { hdr(host) -i {{ .Name }}.test.disco }
     {{ range .Tags -}}
+      {{ if . | regexMatch "vte([0-9]+)"}}
       {{ $backend := ( print $service.Name "_" . "_backend") }}
-      use_backend {{ $backend }} if { hdr(host) -i {{ $service.Name }}.test.disco } { hdr(X-Tag) -i {{ . }} }
+      use_backend {{ $backend }} if { hdr(host) -i {{ $service.Name }}.{{ . }}.disco }
+      {{ end }}
     {{- end }}
+{{ end }}
 {{ end }}
 
 ### Consul-configured backend services ###
@@ -53,6 +58,7 @@ backend {{ .Name }}_backend
 {{ $service := . }}
 {{ range .Tags -}}
   {{ $tag := . -}}
+  {{ if . | regexMatch "vte([0-9]+)"}}
   {{- $backend := ( print $service.Name "_" $tag "_backend") }}
 backend {{ $backend }}
   {{- range service (print $service.Name "@" $dc) "passing" }}
@@ -65,6 +71,7 @@ backend {{ $backend }}
     server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
     {{ end -}}
   {{ end -}}
+{{ end -}}
 {{ end -}}
 {{ end -}}
 

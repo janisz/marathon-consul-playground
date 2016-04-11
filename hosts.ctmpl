@@ -10,5 +10,15 @@ ff02::3 ip6-allhosts
 127.0.1.1 marathon-consul marathon-consul
 
 # Consul services hosts
-{{range services}}{{range service .Name}}
-{{.Address}} {{.Name}}.test.disco{{end}}{{end}}
+{{ range datacenters -}}
+  {{ $dc := . -}}
+  {{ range services }}
+    {{ $service := . -}}
+    127.0.0.1 {{$service.Name}}.test.disco
+    {{ range .Tags -}}
+      {{- if . | regexMatch "vte([0-9]+)" -}}
+        127.0.0.1 {{$service.Name}}.{{ . }}.disco
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

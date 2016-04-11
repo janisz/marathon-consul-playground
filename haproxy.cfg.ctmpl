@@ -26,54 +26,38 @@ frontend www
     bind *:80
 
     ### Services ###
-{{ range datacenters -}}
-{{ $dc := . -}}
 {{ range services }}
     {{ $service := . -}}
     use_backend {{ .Name }}_backend if { hdr(host) -i {{ .Name }}.test.disco }
     {{ range .Tags -}}
-      {{ if . | regexMatch "vte([0-9]+)"}}
+      {{ if . | regexMatch "^vte([0-9]+)$"}}
       {{ $backend := ( print $service.Name "_" . "_backend") }}
       use_backend {{ $backend }} if { hdr(host) -i {{ $service.Name }}.{{ . }}.disco }
       {{ end }}
     {{- end }}
 {{ end }}
-{{ end }}
 
 ### Consul-configured backend services ###
-{{ range datacenters -}}
-{{ $dc := . -}}
 {{ range services }}
 backend {{ .Name }}_backend
-  {{- range service (print .Name "@" $dc) "passing" }}
-    {{ if eq .Address "10.10.10.10" -}}
-    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 100
-    {{- else if eq $dc "dc1" -}}
-    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 10
-    {{ else -}}
-    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
-    {{ end -}}
+  {{ range service .Name "passing" -}}
+  {{ $server := (print .Name "-" .Address "-" .Port ) -}}
+    server {{ $server }} {{ .Address }}:{{ .Port }} weight 100
   {{ end -}}
 
 {{ $service := . }}
 {{ range .Tags -}}
   {{ $tag := . -}}
-  {{ if . | regexMatch "vte([0-9]+)"}}
+  {{ if . | regexMatch "^vte([0-9]+)$"}}
   {{- $backend := ( print $service.Name "_" $tag "_backend") }}
 backend {{ $backend }}
-  {{- range service (print $service.Name "@" $dc) "passing" }}
-  {{ if .Tags | contains $tag }}
-    {{ if eq .Address "10.10.10.10" -}}
-    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 100
-    {{- else if eq $dc "dc1" -}}
-    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 10
-    {{ else -}}
-    server {{ .Node }}-{{ .Port }} {{ .Address }}:{{ .Port }} weight 1
-    {{ end -}}
+  {{ range service $service.Name "passing" -}}
+  {{ if .Tags | contains $tag -}}
+    {{ $server := (print $tag "-" .Name "-" .Address "-" .Port ) -}}
+    server {{ $server }} {{ .Address }}:{{ .Port }} weight 100
   {{ end -}}
 {{ end -}}
 {{ end -}}
 {{ end -}}
 
 {{ end -}}
-{{ end }}

@@ -42,7 +42,8 @@ frontend www
 backend {{ .Name }}_backend
   {{ range service .Name "passing" -}}
   {{ $server := (print .Name "-" .Address "-" .Port ) -}}
-    server {{ $server }} {{ .Address }}:{{ .Port }} weight 100
+    server {{ $server }} {{ .Address }}:{{ .Port -}}
+    {{ if .Tags | contains "green" }} weight 100 {{ else }} weight 10 {{ end }}
   {{ end -}}
 
 {{ $service := . }}
@@ -54,7 +55,8 @@ backend {{ $backend }}
   {{ range service $service.Name "passing" -}}
   {{ if .Tags | contains $tag -}}
     {{ $server := (print $tag "-" .Name "-" .Address "-" .Port ) -}}
-    server {{ $server }} {{ .Address }}:{{ .Port }} weight 100
+    server {{ $server }} {{ .Address }}:{{ .Port -}}
+    {{ if .Tags | contains "green" }} weight 100 {{ else }} weight 10 {{ end }}
   {{ end -}}
 {{ end -}}
 {{ end -}}

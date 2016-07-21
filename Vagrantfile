@@ -24,7 +24,7 @@ Vagrant.configure(2) do |config|
   sudo apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF
 
   DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-  CODENAME=$(lsb_release -cs)
+  CODENAME=$(lsb_release -cs)-unstable
   echo "deb http://repos.mesosphere.io/${DISTRO} ${CODENAME} main" | \
     sudo tee /etc/apt/sources.list.d/mesosphere.list
   echo "deb http://dl.bintray.com/v1/content/allegro/deb /" | \
